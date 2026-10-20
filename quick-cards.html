@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Quick Cards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#E8EEF2; --panel:#FFFFFF; --ink:#1B2A33; --muted:#5B6B75; --line:#C9D4DB;
+  --choice:#2F6FB3; --direct:#2E8B57; --pick:#F2B705; --card:#FFFFFF; --field:#F4F7F9;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root{ --bg:#141C21; --panel:#1E2A31; --ink:#E6EEF2; --muted:#9AAAB4; --line:#33444E;
+    --choice:#6FA8E6; --direct:#5CC08A; --pick:#F2C230; --card:#FFFFFF; --field:#26343C; color-scheme:dark; }
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Atkinson Hyperlegible",system-ui,-apple-system,sans-serif;font-size:17px;line-height:1.4}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--pick);outline-offset:2px}
+
+/* ---------- builder ---------- */
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.bar h1{font-size:1.25rem;margin:0 8px 0 0}
+.seg{display:inline-flex;border:2px solid var(--line);border-radius:12px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:8px 14px;min-width:44px;font-weight:700}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+body[data-mode="choice"]{--accent:var(--choice)}
+body[data-mode="direct"]{--accent:var(--direct)}
+.spacer{flex:1}
+.show{background:var(--accent);color:#fff;border:0;border-radius:12px;padding:10px 22px;font-weight:700;font-size:1.05rem}
+.sub{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 16px}
+.sub label{color:var(--muted);font-size:.95rem}
+.sub input{background:var(--field);border:2px solid var(--line);border-radius:10px;padding:6px 10px;width:14em}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 10px}
+.chip{border:2px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px;font-size:.95rem}
+.chips .hint{color:var(--muted);font-size:.9rem;align-self:center;margin-right:4px}
+
+.slots{display:grid;gap:14px;padding:6px 16px 24px;grid-template-columns:repeat(var(--n),minmax(0,1fr))}
+@media (max-width:760px){ .slots{grid-template-columns:repeat(min(var(--n),2),minmax(0,1fr))} }
+@media (max-width:420px){ .slots{grid-template-columns:1fr} }
+.slot{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.slot .tag{font-weight:700;color:var(--accent);font-size:.95rem;min-height:1.3em}
+.slot input{width:100%;background:var(--field);border:2px solid var(--line);border-radius:10px;padding:8px 10px;font-size:1.1rem}
+.pic{aspect-ratio:1;background:var(--card);border-radius:12px;display:grid;place-items:center;overflow:hidden;color:#5B6B75;font-size:.9rem;text-align:center;padding:6px}
+.pic img{width:100%;height:100%;object-fit:contain}
+.alts{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.alts button{flex:0 0 52px;height:52px;padding:2px;border:2px solid var(--line);border-radius:8px;background:#fff}
+.alts button[aria-pressed="true"]{border-color:var(--accent);border-width:3px}
+.alts img{width:100%;height:100%;object-fit:contain}
+.note{color:var(--muted);font-size:.85rem;padding:0 16px 20px}
+
+/* ---------- show mode ---------- */
+.stage{position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;z-index:20;
+  padding:calc(env(safe-area-inset-top,0px) + 12px) 16px calc(env(safe-area-inset-bottom,0px) + 16px)}
+.stage.on{display:flex}
+.stage h2{margin:4px 56px 12px;text-align:center;font-size:clamp(1.6rem,5vw,3rem)}
+.stage .x{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);right:12px;width:44px;height:44px;border-radius:50%;border:2px solid var(--line);background:var(--panel);font-size:1.3rem;opacity:.6}
+.board{flex:1;display:grid;gap:clamp(10px,2.5vw,28px);min-height:0}
+.board[data-n="1"]{grid-template-columns:1fr}
+.board[data-n="2"]{grid-template-columns:1fr 1fr}
+.board[data-n="3"]{grid-template-columns:repeat(3,1fr)}
+.board[data-n="4"]{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+@media (orientation:portrait){
+  .board[data-n="2"]{grid-template-columns:1fr;grid-template-rows:1fr 1fr}
+  .board[data-n="3"]{grid-template-columns:1fr;grid-template-rows:repeat(3,1fr)}
+}
+.big{background:var(--card);border:6px solid var(--accent);border-radius:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0;min-width:0;padding:2vmin;
+  transition:transform .18s ease,opacity .18s ease,border-color .18s ease;color:#1B2A33;position:relative}
+.big img{flex:1;min-height:0;width:100%;object-fit:contain}
+.big span{font-weight:700;font-size:clamp(1.3rem,4.5vmin,3rem);margin-top:1vmin;text-align:center}
+.big .step{position:absolute;top:10px;left:14px;font-weight:700;font-size:clamp(1rem,3vmin,1.8rem);color:var(--accent)}
+.board.picked .big{opacity:.25;transform:scale(.94)}
+.board.picked .big.chosen{opacity:1;transform:scale(1.03);border-color:var(--pick);border-width:10px}
+@media (prefers-reduced-motion:reduce){.big{transition:none}}
+</style>
+</head>
+<body data-mode="choice">
+
+<div class="bar">
+  <h1>Quick Cards</h1>
+  <div class="seg" role="group" aria-label="Card type">
+    <button data-mode="choice" aria-pressed="true">Choice board</button>
+    <button data-mode="direct" aria-pressed="false">Directive</button>
+  </div>
+  <div class="seg" role="group" aria-label="Number of cards">
+    <button data-n="1">1</button><button data-n="2">2</button><button data-n="3">3</button><button data-n="4">4</button>
+  </div>
+  <div class="seg" role="group" aria-label="Symbol source">
+    <button data-src="arasaac">ARASAAC</button>
+    <button data-src="gs">Global Symbols</button>
+  </div>
+  <div class="spacer"></div>
+  <button class="show" id="showBtn">Show</button>
+</div>
+
+<div class="sub">
+  <label for="title">Board title</label>
+  <input id="title" placeholder="I want…">
+  <label><input type="checkbox" id="speak" checked> Speak on tap</label>
+</div>
+
+<div class="chips" id="chips"></div>
+<div class="slots" id="slots"></div>
+<p class="note">Type a word and the first symbol loads. Tap a small picture underneath to swap it. Symbols: ARASAAC (Sergio Palao, Gobierno de Aragón, CC BY-NC-SA) and Global Symbols.</p>
+
+<div class="stage" id="stage" aria-live="polite">
+  <button class="x" id="closeBtn" aria-label="Close">✕</button>
+  <h2 id="stageTitle"></h2>
+  <div class="board" id="board"></div>
+</div>
+
+<script>
+const PRESETS = {
+  choice: ["break","iPad","snack","music","bubbles","blocks","drawing","book","swing","puzzle"],
+  direct: ["sit down","quiet","hands down","wait","line up","clean up","walk","look","stop","all done","work","bathroom"]
+};
+const DEFAULT_TITLE = {choice:"I want…", direct:""};
+
+let state = { mode:"choice", n:2, src:"arasaac", title:"I want…", speak:true,
+  slots:[{word:"",url:"",alts:[]},{word:"",url:"",alts:[]},{word:"",url:"",alts:[]},{word:"",url:"",alts:[]}] };
+try{ const s = JSON.parse(localStorage.getItem("quickcards")); if(s && s.slots) state = s; }catch(e){}
+const save = () => { try{ localStorage.setItem("quickcards", JSON.stringify(state)); }catch(e){} };
+
+const cache = {};
+async function search(word){
+  const q = word.trim().toLowerCase();
+  if(!q) return [];
+  const key = state.src + ":" + q;
+  if(cache[key]) return cache[key];
+  let urls = [];
+  if(state.src === "arasaac"){
+    const get = async term => {
+      const r = await fetch("https://api.arasaac.org/v1/pictograms/en/search/" + encodeURIComponent(term));
+      if(!r.ok) return [];
+      const d = await r.json();
+      return d.slice(0,12).map(p => `https://static.arasaac.org/pictograms/${p._id}/${p._id}_500.png`);
+    };
+    urls = await get(q);
+    if(!urls.length && q.includes(" ")) urls = await get(q.split(" ").pop());
+  } else {
+    const r = await fetch("https://globalsymbols.com/api/v1/labels/search?query=" + encodeURIComponent(q) + "&language=eng&limit=12");
+    if(r.ok){
+      const d = await r.json();
+      urls = d.map(l => l.picto && l.picto.image_url).filter(Boolean);
+    }
+  }
+  cache[key] = urls;
+  return urls;
+}
+
+function tagFor(i){
+  if(state.mode === "direct"){
+    if(state.n === 2) return i === 0 ? "First" : "Then";
+    if(state.n > 2) return "Step " + (i+1);
+  }
+  return "";
+}
+
+function renderSlots(){
+  const wrap = document.getElementById("slots");
+  wrap.style.setProperty("--n", state.n);
+  wrap.innerHTML = "";
+  for(let i=0;i<state.n;i++){
+    const s = state.slots[i];
+    const el = document.createElement("div");
+    el.className = "slot";
+    el.innerHTML = `
+      <div class="tag">${tagFor(i)}</div>
+      <input type="text" value="${s.word.replace(/"/g,"&quot;")}" placeholder="Type a word" aria-label="Card ${i+1} word">
+      <div class="pic">${s.url ? `<img src="${s.url}" alt="${s.word}">` : (s.word ? "No symbol found. Try a simpler word." : "Card " + (i+1))}</div>
+      <div class="alts"></div>`;
+    const alts = el.querySelector(".alts");
+    s.alts.forEach(u => {
+      const b = document.createElement("button");
+      b.setAttribute("aria-pressed", u === s.url);
+      b.innerHTML = `<img src="${u}" alt="">`;
+      b.onclick = () => { s.url = u; save(); renderSlots(); };
+      alts.appendChild(b);
+    });
+    let t;
+    const input = el.querySelector("input");
+    input.addEventListener("input", () => {
+      s.word = input.value; save();
+      clearTimeout(t);
+      t = setTimeout(() => lookup(i), 450);
+    });
+    input.addEventListener("keydown", e => { if(e.key === "Enter"){ clearTimeout(t); lookup(i); } });
+    wrap.appendChild(el);
+  }
+}
+
+async function lookup(i){
+  const s = state.slots[i];
+  const pic = document.querySelectorAll(".slot .pic")[i];
+  if(!s.word.trim()){ s.url=""; s.alts=[]; save(); renderSlots(); return; }
+  if(pic) pic.textContent = "Searching…";
+  try{
+    const urls = await search(s.word);
+    s.alts = urls; s.url = urls[0] || "";
+  }catch(e){
+    s.alts = []; s.url = "";
+    if(pic) pic.textContent = state.src === "gs" ? "Global Symbols didn’t respond. Switch to ARASAAC." : "Couldn’t reach ARASAAC. Check the connection.";
+    save(); return;
+  }
+  save(); renderSlots();
+}
+
+function fillNext(word){
+  let i = state.slots.slice(0,state.n).findIndex(s => !s.word.trim());
+  if(i === -1) i = state.n - 1;
+  state.slots[i].word = word; save(); renderSlots(); lookup(i);
+}
+
+function renderChips(){
+  const c = document.getElementById("chips");
+  c.innerHTML = `<span class="hint">Quick add:</span>`;
+  PRESETS[state.mode].forEach(w => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.textContent = w;
+    b.onclick = () => fillNext(w);
+    c.appendChild(b);
+  });
+}
+
+function syncBar(){
+  document.body.dataset.mode = state.mode;
+  document.querySelectorAll("[data-mode]").forEach(b => b.tagName==="BUTTON" && b.setAttribute("aria-pressed", b.dataset.mode===state.mode));
+  document.querySelectorAll("[data-n]").forEach(b => b.setAttribute("aria-pressed", +b.dataset.n===state.n));
+  document.querySelectorAll("[data-src]").forEach(b => b.setAttribute("aria-pressed", b.dataset.src===state.src));
+  document.getElementById("title").value = state.title;
+  document.getElementById("speak").checked = state.speak;
+}
+
+function say(text){
+  if(!state.speak || !("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text); u.rate = .9;
+  speechSynthesis.speak(u);
+}
+
+function show(){
+  const board = document.getElementById("board");
+  board.dataset.n = state.n;
+  board.className = "board";
+  board.innerHTML = "";
+  document.getElementById("stageTitle").textContent = state.title;
+  document.getElementById("stageTitle").style.display = state.title ? "" : "none";
+  for(let i=0;i<state.n;i++){
+    const s = state.slots[i];
+    const card = document.createElement("button");
+    card.className = "big";
+    const tag = tagFor(i);
+    card.innerHTML = `${tag ? `<span class="step">${tag}</span>` : ""}${s.url ? `<img src="${s.url}" alt="">` : ""}<span>${s.word || ""}</span>`;
+    card.onclick = () => {
+      const already = card.classList.contains("chosen");
+      board.querySelectorAll(".big").forEach(b => b.classList.remove("chosen"));
+      if(state.mode === "choice" && !already && state.n > 1){
+        board.classList.add("picked"); card.classList.add("chosen");
+      } else board.classList.remove("picked");
+      if(!already){
+        const lead = state.mode === "choice" && state.title.replace(/[….]+$/,"").trim();
+        say(state.mode === "direct" && tag ? `${tag}, ${s.word}` : (lead ? `${lead} ${s.word}` : s.word));
+      }
+    };
+    board.appendChild(card);
+  }
+  document.getElementById("stage").classList.add("on");
+  const el = document.documentElement;
+  if(el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+}
+function hide(){
+  document.getElementById("stage").classList.remove("on");
+  if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+}
+
+document.querySelectorAll("button[data-mode]").forEach(b => b.onclick = () => {
+  if(state.title === DEFAULT_TITLE[state.mode]) state.title = DEFAULT_TITLE[b.dataset.mode];
+  state.mode = b.dataset.mode; save(); syncBar(); renderChips(); renderSlots();
+});
+document.querySelectorAll("[data-n]").forEach(b => b.onclick = () => { state.n = +b.dataset.n; save(); syncBar(); renderSlots(); });
+document.querySelectorAll("[data-src]").forEach(b => b.onclick = () => {
+  state.src = b.dataset.src; save(); syncBar();
+  state.slots.slice(0,state.n).forEach((s,i) => s.word.trim() && lookup(i));
+});
+document.getElementById("title").oninput = e => { state.title = e.target.value; save(); };
+document.getElementById("speak").onchange = e => { state.speak = e.target.checked; save(); };
+document.getElementById("showBtn").onclick = show;
+document.getElementById("closeBtn").onclick = hide;
+document.addEventListener("keydown", e => { if(e.key === "Escape") hide(); });
+
+syncBar(); renderChips(); renderSlots();
+</script>
+</body>
+</html>
